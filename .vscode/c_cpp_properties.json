@@ -1,0 +1,37 @@
+{
+    "configurations": [
+        {
+            "name": "RaspPi",
+            "includePath": [
+                "${workspaceRoot}/include",
+                "C:/sysgcc/raspberry/arm-linux-gnueabihf/include/c++/10",
+                "C:/sysgcc/raspberry/arm-linux-gnueabihf/include/c++/10/backward",
+                "C:/sysgcc/raspberry/lib/gcc/arm-linux-gnueabihf/10/include",
+                "C:/sysgcc/raspberry/lib/gcc/arm-linux-gnueabihf/10/include-fixed",
+                "C:/sysgcc/raspberry/arm-linux-gnueabihf/include",
+                "C:/sysgcc/raspberry/arm-linux-gnueabihf/include/arm-linux-gnueabihf/c++/10",
+                "C:/sysgcc/raspberry/arm-linux-gnueabihf/sysroot/usr/include/arm-linux-gnueabihf",
+                "C:/sysgcc/raspberry/arm-linux-gnueabihf/sysroot/usr/include",
+                "${workspaceFolder}/include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerPath": "C:/Users/Andrew/Documents/compilers/SysGCC/bin/arm-linux-gnueabihf-g++",
+            "intelliSenseMode": "linux-gcc-arm64",
+            "cStandard": "c17",
+            "cppStandard": "c++11",
+            "mergeConfigurations": false,
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/include"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "configurationProvider": "ms-vscode.makefile-tools"
+        }
+    ],
+    "version": 4
+}
