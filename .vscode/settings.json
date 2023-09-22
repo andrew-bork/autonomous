@@ -63,6 +63,18 @@
         "streambuf": "cpp",
         "thread": "cpp",
         "cinttypes": "cpp",
-        "typeinfo": "cpp"
+        "typeinfo": "cpp",
+        "socket": "cpp",
+        "cerrno": "cpp",
+        "executor": "cpp",
+        "codecvt": "cpp",
+        "csignal": "cpp",
+        "forward_list": "cpp",
+        "list": "cpp",
+        "buffer": "cpp",
+        "io_context": "cpp",
+        "netfwd": "cpp",
+        "future": "cpp",
+        "variant": "cpp"
     }
 }

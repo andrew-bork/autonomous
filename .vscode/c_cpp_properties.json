@@ -4,15 +4,8 @@
             "name": "RaspPi",
             "includePath": [
                 "${workspaceRoot}/include",
-                "C:/sysgcc/raspberry/arm-linux-gnueabihf/include/c++/10",
-                "C:/sysgcc/raspberry/arm-linux-gnueabihf/include/c++/10/backward",
-                "C:/sysgcc/raspberry/lib/gcc/arm-linux-gnueabihf/10/include",
-                "C:/sysgcc/raspberry/lib/gcc/arm-linux-gnueabihf/10/include-fixed",
-                "C:/sysgcc/raspberry/arm-linux-gnueabihf/include",
-                "C:/sysgcc/raspberry/arm-linux-gnueabihf/include/arm-linux-gnueabihf/c++/10",
-                "C:/sysgcc/raspberry/arm-linux-gnueabihf/sysroot/usr/include/arm-linux-gnueabihf",
-                "C:/sysgcc/raspberry/arm-linux-gnueabihf/sysroot/usr/include",
-                "${workspaceFolder}/include"
+                "${workspaceFolder}/include",
+                "C:/SysGCC/raspberry64/aarch64-linux-gnu/include/c++/10"
             ],
             "defines": [
                 "_DEBUG",

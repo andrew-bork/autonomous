@@ -1,11 +1,13 @@
 # export PROJECT_DIR:=C:/Users/Andrew/Documents/VSCode/autonomous
 # export TOOLCHAIN_DIR:=C:/Users/Andrew/Documents/compilers/SysGCC/bin
-export CC:=aarch64-linux-gnu-gcc
-export CXX:=aarch64-linux-gnu-g++
-export LD:=aarch64-linux-gnu-ld
+DIR:=/cygdrive/c/SysGCC/raspberry64/bin/
+# DIR:=
+export CC:=${DIR}aarch64-linux-gnu-gcc
+export CXX:=${DIR}aarch64-linux-gnu-g++
+export LD:=${DIR}aarch64-linux-gnu-ld
 CFLAGS:=
 CXXFLAGS:=
-CPPFLAGS:=-I"include" -std=c++11 -Llib
+CPPFLAGS:=-I"include" -std=c++11 -Llib -g
 LDFLAGS:=
 LDLIBS:=
 export BUILD_DIR:=build
@@ -22,9 +24,9 @@ BACKEND_BUILD:=${patsubst ./src/backend/%.cpp,build/%.o,${BACKEND_SRC}}
 # LDFLAGS -- linker flags
 # LDLIBS -- libraries to link
 
-.PHONY: all clean adiru auto_com motor_controller
+.PHONY: all clean adiru auto_com motor_controller monitor
 
-all: bin/hello bin/pressure bin/adiru bin/auto_com bin/motor_controller bin/gps_test bin/mag_test
+all: bin/hello bin/pressure bin/adiru bin/auto_com bin/motor_controller bin/gps_test bin/mag_test bin/monitor
 
 build:
 	mkdir build
@@ -41,8 +43,12 @@ ${patsubst ./src/math/%.cpp,build/%.o,${wildcard ./src/math/*.cpp}}: ${BUILD_DIR
 build/fmt.o: src/format.cc
 	$(CXX) ${CPPFLAGS} -c $^ -o $@
 
+monitor: bin/monitor
+bin/monitor: src/monitor.cpp build/timer.o
+	${CXX} ${CPPFLAGS} -pthread $^ -o $@
+
 adiru: bin/adiru
-bin/adiru: build/fmt.o build/log.o src/adiru.cpp build/i2c.o build/bmp390.o build/timer.o build/filter.o build/mpu6050.o lib/libpaho-mqtt3a.so lib/libpaho-mqttpp3.so build/math.o
+bin/adiru: src/adiru-nosocket.cpp build/server.o build/gps.o build/str_utils.o build/fmt.o build/i2c.o build/bmp390.o build/timer.o build/filter.o build/mpu6050.o build/qmc5883.o build/math.o
 	${CXX} ${CPPFLAGS} -pthread $^ -o $@
 
 auto_com: bin/auto_com
@@ -54,10 +60,10 @@ bin/motor_controller: build/fmt.o build/log.o src/motor_controller.cpp build/str
 	${CXX} ${CPPFLAGS} -pthread $^ -o $@
 
 
-bin/gps_test: src/gps_test.cpp build/str_utils.o 
+bin/gps_test: src/gps_test.cpp build/str_utils.o build/gps.o
 	${CXX} ${CPPFLAGS} -pthread $^ -o $@
 
-bin/mag_test: src/mag_test.cpp build/i2c.o build/qmc5883.o lib/libpaho-mqtt3a.so lib/libpaho-mqttpp3.so 
+bin/mag_test: build/filter.o src/mag_test.cpp build/i2c.o build/qmc5883.o lib/libpaho-mqtt3a.so lib/libpaho-mqttpp3.so 
 	${CXX} ${CPPFLAGS} -pthread $^ -o $@
 
 bin/pressure: src/tests/pressure.cpp build/i2c.o build/bmp390.o build/timer.o build/filter.o
@@ -66,5 +72,9 @@ bin/pressure: src/tests/pressure.cpp build/i2c.o build/bmp390.o build/timer.o bu
 bin/hello: src/tests/hello.cpp
 	$(CXX) $^ -o $@ -static
 
+.PHONY: install
+install:
+	scp -r bin/ pi@drone:bin/
+
 clean: 
-	rd -r ${BUILD_DIR}
+	rm -rf ${BUILD_DIR}
