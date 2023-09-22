@@ -28,7 +28,7 @@ Requires the install of an [MQTT broker](https://randomnerdtutorials.com/how-to-
 Clone the project
 
 ```bash
-  git clone https://link-to-project
+  git clone https://github.com/andrew-bork/autonomous
 ```
 
 Go to the project directory
