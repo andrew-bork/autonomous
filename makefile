@@ -1,8 +1,8 @@
 # export PROJECT_DIR:=C:/Users/Andrew/Documents/VSCode/autonomous
 # export TOOLCHAIN_DIR:=C:/Users/Andrew/Documents/compilers/SysGCC/bin
-export CC:=aarch64-linux-gnu-gcc
-export CXX:=aarch64-linux-gnu-g++
-export LD:=aarch64-linux-gnu-ld
+export CC:=arm-linux-gnueabihf-gcc
+export CXX:=arm-linux-gnueabihf-g++
+export LD:=arm-linux-gnueabihf-ld
 CFLAGS:=
 CXXFLAGS:=
 CPPFLAGS:=-I"include" -std=c++11 -Llib
