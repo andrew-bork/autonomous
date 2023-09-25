@@ -39,9 +39,9 @@ void tick(double dt) {
     }
     
     math::vector euler_v = math::vector(filtered_mpu6050_data[3]*dt*DEG_TO_RAD, filtered_mpu6050_data[4]*dt*DEG_TO_RAD, filtered_mpu6050_data[5]*dt*DEG_TO_RAD);
-    math::quarternion euler_q = math::quarternion::fromEulerZYX(euler_v);
+    math::quarternion euler_q = math::quarternion::from_euler_ZYX(euler_v);
     orientation = euler_q*orientation;
-    orientation_euler = math::quarternion::toEuler(orientation);
+    orientation_euler = math::quarternion::to_euler(orientation);
 
 
     double a_dist_from_one_sqrd = mpu6050_data[0] * mpu6050_data[0] + mpu6050_data[1] * mpu6050_data[1] + mpu6050_data[2] * mpu6050_data[2] - 1;
@@ -51,15 +51,15 @@ void tick(double dt) {
     orientation_euler.x = orientation_euler.x * (1 - sensor_roll_pitch_tau) + roll * sensor_roll_pitch_tau;
     orientation_euler.y = orientation_euler.y * (1 - sensor_roll_pitch_tau) + pitch * sensor_roll_pitch_tau;
     
-    orientation = math::quarternion::fromEulerZYX(orientation_euler);
-    orientation_euler = math::quarternion::toEuler(orientation);
+    orientation = math::quarternion::from_euler_ZYX(orientation_euler);
+    orientation_euler = math::quarternion::to_euler(orientation);
     
 
     // math::vector temp = velocity * dt;
     // position = position + temp;
     // position.z = position.z * sensor_z_tau + bmp390_mpu6050_data[2] * (1 - sensor_z_tau);
     // temp = math::vector(filtered_mpu6050_data[0]*dt*G, filtered_mpu6050_data[1]*dt*G, -filtered_mpu6050_data[2]*dt*G);
-    // temp = math::quarternion::rotateVector(orientation, temp);
+    // temp = math::quarternion::rotate_vector(orientation, temp);
     // temp.z += G*dt;
     // velocity = velocity + temp;
     // velocity.z = vzfilter[velocity.z];

@@ -1,11 +1,17 @@
 #include <util/server.h>
 #include <util/timer.h>
-#include <math/filter.h>
+
+
 #include <backend/mpu6050.h>
 #include <backend/bmp390.h>
 #include <backend/qmc5883.h>
 #include <backend/gps.h>
-#include <math/math.h>
+
+#include <math/filter.h>
+#include <math/quarternion.h>
+#include <math/constants.h>
+#include <math/vector.h>
+
 #include <cmath>
 
 #include <fcntl.h>
@@ -43,7 +49,7 @@ double * debug = data + 24; // 24
 
 filter::filter filters[6];
 
-math::quarternion orientation;
+math::quarternion orientation(1, 0, 0, 0);
 math::vector orientation_euler;
 math::vector position(0, 0, 0), velocity(0, 0, 0);
 
@@ -51,6 +57,14 @@ double sensor_roll_pitch_tau = 0.05;
 
 
 gps gps_unit;
+
+math::vector calculate_orientation(const math::vector& acceleration) {
+    return math::vector(
+        atan2(acceleration.y, acceleration.z),
+        atan2(acceleration.x, sqrt(acceleration.y * acceleration.y + acceleration.z * acceleration.z)),
+        0
+    );
+}
 
 void tick(double dt) {
     
@@ -69,37 +83,37 @@ void tick(double dt) {
         }
     }
 
-
-    math::vector euler_v = math::vector(
-        filtered_mpu6050_data[3] * dt * DEG_TO_RAD, 
-        filtered_mpu6050_data[4] * dt * DEG_TO_RAD, 
-        filtered_mpu6050_data[5] * dt * DEG_TO_RAD
+    math::vector acceleration = math::vector(
+        filtered_mpu6050_data[0], 
+        filtered_mpu6050_data[1], 
+        filtered_mpu6050_data[2]
     );
+
+    math::vector angular_velocity = math::vector(
+        filtered_mpu6050_data[3], 
+        filtered_mpu6050_data[4], 
+        filtered_mpu6050_data[5]
+    ) * dt * DEG_TO_RAD;
     
-    math::quarternion euler_q = math::quarternion::fromEulerZYX(euler_v);
-    orientation = euler_q * orientation;
-    orientation_euler = math::quarternion::toEuler(orientation);
+    math::quarternion angular_velocity_quarternion = math::quarternion::from_euler_ZYX(angular_velocity);
+    orientation = angular_velocity_quarternion * orientation;
+    orientation_euler = math::quarternion::to_euler(orientation);
 
 
-    double a_dist_from_one_sqrd = 
-        mpu6050_data[0] * mpu6050_data[0] + 
-        mpu6050_data[1] * mpu6050_data[1] + 
-        mpu6050_data[2] * mpu6050_data[2] - 1;
+
+    double a_dist_from_gravity = math::length(acceleration) - 1;
     
-    euler_angles[0] = atan2(mpu6050_data[1], mpu6050_data[2]);
-    euler_angles[1] = atan2((mpu6050_data[0]) , sqrt(mpu6050_data[1] * mpu6050_data[1] + mpu6050_data[2] * mpu6050_data[2]));
-    euler_angles[2] = 0;
+    math::vector acceleration_orientation = calculate_orientation(acceleration);
+    acceleration_orientation.z = orientation_euler.z;
 
-
-    orientation_euler.x = orientation_euler.x * (1 - sensor_roll_pitch_tau) + euler_angles[0] * sensor_roll_pitch_tau;
-    orientation_euler.y = orientation_euler.y * (1 - sensor_roll_pitch_tau) + euler_angles[1] * sensor_roll_pitch_tau;
+    orientation_euler = orientation_euler * (1 - sensor_roll_pitch_tau) + acceleration_orientation * sensor_roll_pitch_tau;
     
-    orientation = math::quarternion::fromEulerZYX(orientation_euler);
-    orientation_euler = math::quarternion::toEuler(orientation);
+    orientation = math::quarternion::from_euler_ZYX(orientation_euler);
+    orientation_euler = math::quarternion::to_euler(orientation);
     
     qmc5883::get_data(qmc5883_data);
 
-    debug[0] = dt;
+    // debug[0] = dt;
 
     if(gps_unit.new_data) {
         gps_data[0] = gps_unit.lat;
@@ -112,7 +126,7 @@ void tick(double dt) {
     // position = position + temp;
     // position.z = position.z * sensor_z_tau + bmp390_mpu6050_data[2] * (1 - sensor_z_tau);
     // temp = math::vector(filtered_mpu6050_data[0]*dt*G, filtered_mpu6050_data[1]*dt*G, -filtered_mpu6050_data[2]*dt*G);
-    // temp = math::quarternion::rotateVector(orientation, temp);
+    // temp = math::quarternion::rotate_vector(orientation, temp);
     // temp.z += G*dt;
     // velocity = velocity + temp;
     // velocity.z = vzfilter[velocity.z];

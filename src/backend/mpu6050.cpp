@@ -1,10 +1,3 @@
-//-------------------------------MPU6050 Accelerometer and Gyroscope C++ library-----------------------------
-//Copyright (c) 2019, Alex Mous
-//Licensed under the CC BY-NC SA 4.0
-
-// MODIFIED BY ANDREW LIN
-
-//Include the header file for this class
 #include "backend/mpu6050.h"
 
 
@@ -19,12 +12,42 @@
 #include <cstdint>
 
 #include <backend/i2c.h>
-// #include <logger.h>
+
+/**
+ * @brief Registers
+ * 
+ */
+
+#define REG_PWR_MNG_1 0x6B // Register map 4.28
+#define REG_PWR_MNG_2 0x6C // Register map 4.29
+#define REG_CFG 0x1A
+#define REG_GYRO_CFG 0x1B
+#define REG_ACCL_CFG 0x1C
+#define REG_FIFO_EN 0x23
+#define REG_ACCL_OUT_STRT 0x3B
+#define REG_TEMP_OUT_STRT 0x41
+#define REG_GYRO_OUT_STRT 0x43
+#define REG_SIG_PTH_RST 0x68 //Signal Path Reset
+#define REG_USR_CTRL 0x6A
+
+#define OUT_XACCL_H 0x3B
+#define OUT_XACCL_L 0x3C
+#define OUT_YACCL_H 0x3D
+#define OUT_YACCL_L 0x3E
+#define OUT_ZACCL_H 0x3F
+#define OUT_ZACCL_L 0x40
+#define OUT_TEMP_H 0x41
+#define OUT_TEMP_L 0x42
+#define OUT_XGYRO_H 0x43
+#define OUT_XGYRO_L 0x44
+#define OUT_YGYRO_H 0x45
+#define OUT_YGYRO_L 0x46
+#define OUT_ZGYRO_H 0x47
+#define OUT_ZGYRO_L 0x48
+
 
 #define Read(r) (uint16_t) mpu.read_byte(r)
 #define Write(r,v) mpu.write_byte(r,v)
-
-// static int fd;
 
 void mpu6050::init(){init(MPU6050_DEFAULT_ADDR);}
 
@@ -46,21 +69,12 @@ void mpu6050::init(int addr){
 	offsets[5] = 0; // Z_GYRO_SHIFT;
 }
 
-
-inline void debug2 (const char * name, int reg){
-	// logger::debug("Register {:20s} : Value of Register {:2x}: {:5d}", name, reg, Read(reg));
-}
-
-inline void debug3(int val){
-	// printf("[DEBUG] Changing value to %5d", val);
-}
-
 void mpu6050::print_debug(){
-	debug2("Pwr Mng 1",REG_PWR_MNG_1);
-	debug2("Cfg", REG_CFG);
-	debug2("Accl Cfg", REG_ACCL_CFG);
-	debug2("Gyro Cfg", REG_GYRO_CFG);
 
+}
+
+bool mpu6050::is_awake() {
+	return (Read(REG_PWR_MNG_1) & (0b01100000)) == 0b000000000;
 }
 
 void mpu6050::wake_up(){
@@ -129,15 +143,7 @@ void mpu6050::set_fsync(fsync::fsync set){
 	usleep(1000);
 }
 
-void mpu6050::set_pwr_set(int set){
-
-}
-
 int16_t handle_neg(int n){
-	// if(n & 0x4000){
-	// 	return -((~(n - 1))&0x7FFF);
-	// }
-	// return n&0x7FFF;
 	return (int16_t) n;
 }
 
@@ -179,6 +185,13 @@ void mpu6050::read(double * data){
 	data[5] = ((double) rawdata[5] - offsets[5]) / gyro_scale;
 }
 
+void mpu6050::read(math::vector& acceleration, math::vector& angular_velocity) {
+	double data[6];
+	read(data);
+	acceleration = math::vector(data[0], data[1], data[2]);
+	angular_velocity = math::vector(data[3], data[4], data[5]);
+}
+
 int mpu6050::query_register(int reg){
 	return Read(reg);
 }
@@ -186,28 +199,6 @@ int mpu6050::query_register(int reg){
 void mpu6050::set_register(int reg, int data){
 	Write(reg,data);
 }
-
-
-
-// void mpu6050::calibrate(int n){
-// 	int j = n;
-//     int data[6];
-// 	int s_data[6];
-// 	for(int i = 0; i < 6; i++){s_data[i]=0;}
-// 	printf(			"[Debug] Calibrating MPU6050\n");
-// 	printf(			"[Debug] X Accl | Y Accl | Z Accl | X Gyro | Y Gyro | Z Gyro\n");
-// 	while(j--){
-// 		mpu6050::read_raw(data);
-		// printf(	"[Debug] %6d | %6d | %6d | %6d | %6d | %6d\n",data[0],data[1],data[2],data[3],data[4],data[5]);
-// 		for(int i = 0; i < 6; i++){
-// 			s_data[i]+=data[i];
-
-// 		}
-//         usleep(500);
-// 	}
-// 	set_offsets(s_data[0] / n,s_data[1] / n,s_data[2] / n - accl_scale,s_data[3] / n,s_data[4] / n,s_data[5] / n);
-// 	printf("\n\n[Output] Calibration Results: \n[Output] X Accl | Y Accl | Z Accl | X Gyro | Y Gyro | Z Gyro\n[Output] %6d | %6d | %6d | %6d | %6d | %6d\n[Output] The running program's offsets have been configured. To configure offsets when running other programs, insert the following line: \n[Output] mpu6050::set_offsets(%d, %d, %d, %d, %d, %d)\n\n", s_data[0] / n,s_data[1] / n,s_data[2] / n - 16834,s_data[3] / n,s_data[4] / n,s_data[5] / n, s_data[0] / n,s_data[1] / n,s_data[2] / n - 16834,s_data[3] / n,s_data[4] / n,s_data[5] / n);
-// }
 
 
 void mpu6050::calibrate(int n){
@@ -224,11 +215,8 @@ void mpu6050::calibrate(int n){
 	for(int i = 0; i < n; i ++){
 		for(int j = 0; j < 100; j ++){
 			mpu6050::read_raw(data);
-			// printf("[Debug] %6d | %6d | %6d | %6d | %6d | %6d\n",data[0],data[1],data[2],data[3],data[4],data[5]);
-			// printf(	"[Debug] %6d | %6d | %6d | %6d | %6d | %6d\n",data[0],data[1],data[2],data[3],data[4],data[5]);
 			
 			double dt = 0.001;
-			// logger::debug("{:6d} | {:6d} | {:6d} | {:6d} | {:6d} | {:6d}",data[0],data[1],data[2],data[3],data[4],data[5]);
 			for(int k = 0; k < 6; k ++){
 				double error = expect[k] - (data[k] - offsets[k]);
 				double p_term = error * kP[k];
@@ -247,10 +235,6 @@ void mpu6050::calibrate(int n){
 			error_sum[j] = 0;
 		}
 	}
-
-	// logger::info("Offset: {:6d} | {:6d} | {:6d} | {:6d} | {:6d} | {:6d}",offsets[0], offsets[1], offsets[2], offsets[3], offsets[4], offsets[5]);
-	// printf("\n\n[Output] Calibration Results: \n[Output] X Accl | Y Accl | Z Accl | X Gyro | Y Gyro | Z Gyro\n[Output] %6d | %6d | %6d | %6d | %6d | %6d\n[Output] The running program's offsets have been configured. To configure offsets when running other programs, insert the following line: \n[Output] mpu6050::set_offsets(%d, %d, %d, %d, %d, %d)\n\n", offsets[0], offsets[1], offsets[2], offsets[3], offsets[4], offsets[5], offsets[0], offsets[1], offsets[2], offsets[3], offsets[4], offsets[5]);
-
 }
 
 void mpu6050::set_offsets(int x_a, int y_a, int z_a, int x_g, int y_g, int z_g){
