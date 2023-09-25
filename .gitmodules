@@ -1,0 +1,3 @@
+[submodule "lib-Mission-Control"]
+	path = lib-Mission-Control
+	url = https://github.com/andrew-bork/lib-Mission-Control
