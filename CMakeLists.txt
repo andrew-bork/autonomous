@@ -36,4 +36,3 @@ target_link_libraries(motor_controller autonomous)
 
 add_executable(monitor src/main/monitor.cpp)
 target_link_libraries(monitor autonomous)
-
