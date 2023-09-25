@@ -1,18 +1,38 @@
-cmake_minimum_required(VERSION 3.27.0)
-set(CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD 23)
+cmake_minimum_required (VERSION 3.27.6)
+project(Autonomous)
 
+include_directories(include include/mqtt)
 
-project(autonomous)
+set(CXX_STANDARD C++23)
 
-add_executable(adiru src/adiru.cpp src/math/filter.cpp src/math/math.cpp src/backend/mpu6050.cpp src/backend/i2c.cpp src/backend/bmp390.cpp src/backend/qmc5883.cpp  src/backend/socket.cpp lib/libpaho-mqtt3a.so lib/libpaho-mqttpp3.so)
-add_executable(gps_test src/gps_test.cpp src/math/filter.cpp src/math/math.cpp src/backend/mpu6050.cpp src/backend/i2c.cpp src/backend/bmp390.cpp src/backend/qmc5883.cpp  src/backend/socket.cpp)
-add_executable(mag_test src/mag_test.cpp src/math/filter.cpp src/math/math.cpp src/backend/mpu6050.cpp src/backend/i2c.cpp src/backend/bmp390.cpp src/backend/qmc5883.cpp  src/backend/socket.cpp)
-# add_executable(motor_controller src/motor_controller.cpp)
-link_directories(./lib)
+add_library(autonomous STATIC 
+    src/backend/bmp390.cpp
+    src/backend/gps.cpp
+    src/backend/i2c.cpp
+    src/backend/mpu6050.cpp
+    src/backend/pca9685.cpp
+    src/backend/qmc5883.cpp
 
-include_directories(include)
-# add_library(./lib/)
+    src/math/filter.cpp
+    src/math/math.cpp
 
-# Turn on all warning.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+    src/util/log.cpp
+    src/util/server.cpp
+    src/util/str_utils.cpp
+    src/util/timer.cpp
+)
+
+add_executable(adiru src/main/adiru-nosocket.cpp)
+target_link_libraries(adiru autonomous)
+
+add_executable(gps src/main/gps_test.cpp)
+target_link_libraries(gps autonomous)
+
+add_executable(magtest src/main/mag_test.cpp)
+target_link_libraries(magtest autonomous)
+
+add_executable(motor_controller src/main/motor_controller.cpp)
+target_link_libraries(motor_controller autonomous)
+
+add_executable(monitor src/main/monitor.cpp)
+target_link_libraries(monitor autonomous)
