@@ -1,11 +1,11 @@
 
 # Autonomous
 
-A complete rewrite of my [drone repository](https://github.com/andrew-bork/drone). It now uses a cross-compiler to compile for the Raspberry Pi and an MQTT broker to handle messaging.
+A complete rewrite of my [drone repository](https://github.com/andrew-bork/drone). It now uses a cross-compiler to compile for the Raspberry Pi and my custom [libmissioncontrol](https://github.com/andrew-bork/lib-Mission-Control).
 
 This is a C++ project to use a Raspberry Pi as an onboard flight controller in a drone. 
 
-This code is not portable, as it directly interfaces with i2c devices.
+This code is probably not portable without some extra coercing.
 
 #### Sensors and Devices:
 
@@ -18,12 +18,8 @@ This code is not portable, as it directly interfaces with i2c devices.
 
 #### Dependencies:
 - Raspberry Pi i2c
-- MQTT broker
-- [paho-mqtt](https://www.eclipse.org/paho/)
-- [fmt](https://github.com/fmtlib/fmt)
+- [libmissioncontrol](https://github.com/andrew-bork/lib-Mission-Control)
 ## Usage
-
-Requires the install of an [MQTT broker](https://randomnerdtutorials.com/how-to-install-mosquitto-broker-on-raspberry-pi/) on the Raspberry Pi.
 
 Clone the project
 
@@ -37,22 +33,11 @@ Go to the project directory
   cd autonomous
 ```
 
-Build project
+Build with Cmake
 
 ```bash
-  make
-```
-
-Copy files to Raspberry Pi
-
-```bash
-    scp -r bin/* raspberrypi@hostname:~/install
-```
-
-Start an SSH session, then run.
-
-```bash
-  ssh raspberrypi@hostname
-  ./install/adiru && ./install/motor_controller 
+  cmake -S . -B ./build
+  cd build
+  make -j12
 ```
 

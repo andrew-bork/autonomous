@@ -111,6 +111,8 @@ void tick(double dt) {
     orientation = math::quarternion::from_euler_ZYX(orientation_euler);
     orientation_euler = math::quarternion::to_euler(orientation);
     
+    // euler_angles[0] = orientation_euler.x 
+
     qmc5883::get_data(qmc5883_data);
 
     // debug[0] = dt;
