@@ -35,6 +35,8 @@ mqtt::client client(MQTT_BROKER, MQTT_ID, mqtt::create_options(MQTTVERSION_5));
 
 auto forever = std::chrono::seconds(std::numeric_limits<int>::max());
 
+pca9685 pca;
+
 int main(int argc, char ** argv) {
     cxxopts::Options options("Motor Controller", "This system controls the motors and led powers.");
     options.add_options()
@@ -45,26 +47,25 @@ int main(int argc, char ** argv) {
     auto result = options.parse(argc, argv);
 
     bool should_arm = result["arm"].as<bool>();
-    pca9685::init();
-    pca9685::set_frequency(50);
-    pca9685::wake_up();
+    pca.set_frequency(50);
+    pca.wake_up();
     if(should_arm) {
         printf("arming motors\n");
         
-        pca9685::set_pwm_ms(0, THROTTLE_MIN);
-        pca9685::set_pwm_ms(1, THROTTLE_MIN);
-        pca9685::set_pwm_ms(2, THROTTLE_MIN);
-        pca9685::set_pwm_ms(3, THROTTLE_MIN);
+        pca.set_pwm_ms(0, THROTTLE_MIN);
+        pca.set_pwm_ms(1, THROTTLE_MIN);
+        pca.set_pwm_ms(2, THROTTLE_MIN);
+        pca.set_pwm_ms(3, THROTTLE_MIN);
         usleep(2000000);
-        pca9685::set_pwm_ms(0, THROTTLE_MAX);
-        pca9685::set_pwm_ms(1, THROTTLE_MAX);
-        pca9685::set_pwm_ms(2, THROTTLE_MAX);
-        pca9685::set_pwm_ms(3, THROTTLE_MAX);
+        pca.set_pwm_ms(0, THROTTLE_MAX);
+        pca.set_pwm_ms(1, THROTTLE_MAX);
+        pca.set_pwm_ms(2, THROTTLE_MAX);
+        pca.set_pwm_ms(3, THROTTLE_MAX);
         usleep(2000000);
-        pca9685::set_pwm_ms(0, THROTTLE_MIN);
-        pca9685::set_pwm_ms(1, THROTTLE_MIN);
-        pca9685::set_pwm_ms(2, THROTTLE_MIN);
-        pca9685::set_pwm_ms(3, THROTTLE_MIN);
+        pca.set_pwm_ms(0, THROTTLE_MIN);
+        pca.set_pwm_ms(1, THROTTLE_MIN);
+        pca.set_pwm_ms(2, THROTTLE_MIN);
+        pca.set_pwm_ms(3, THROTTLE_MIN);
         usleep(1000000);
     }
 
@@ -94,7 +95,7 @@ int main(int argc, char ** argv) {
                 int pin = std::stoi(tokenizer.next_token());
                 double brightness = std::stod(tokenizer.next_token());
 
-                pca9685::set_pwm_ms(pin, (int) (PWM_FULL * brightness));
+                pca.set_pwm_ms(pin, (int) (PWM_FULL * brightness));
                 printf("led: pin %d brightness to %4.2f\n", pin, brightness);
             }else if(topic_string == "motors/speed") {
                 printf("%s\n", message_string.c_str());
@@ -107,10 +108,10 @@ int main(int argc, char ** argv) {
                 throttles[3] = std::stod(tokenizer.next_token());
 
 
-                pca9685::set_pwm_ms(0, (int) ((THROTTLE_MAX - THROTTLE_MIN) * throttles[0] + THROTTLE_MIN));
-                pca9685::set_pwm_ms(1, (int) ((THROTTLE_MAX - THROTTLE_MIN) * throttles[1] + THROTTLE_MIN));
-                pca9685::set_pwm_ms(2, (int) ((THROTTLE_MAX - THROTTLE_MIN) * throttles[2] + THROTTLE_MIN));
-                pca9685::set_pwm_ms(3, (int) ((THROTTLE_MAX - THROTTLE_MIN) * throttles[3] + THROTTLE_MIN));
+                pca.set_pwm_ms(0, (int) ((THROTTLE_MAX - THROTTLE_MIN) * throttles[0] + THROTTLE_MIN));
+                pca.set_pwm_ms(1, (int) ((THROTTLE_MAX - THROTTLE_MIN) * throttles[1] + THROTTLE_MIN));
+                pca.set_pwm_ms(2, (int) ((THROTTLE_MAX - THROTTLE_MIN) * throttles[2] + THROTTLE_MIN));
+                pca.set_pwm_ms(3, (int) ((THROTTLE_MAX - THROTTLE_MIN) * throttles[3] + THROTTLE_MIN));
 
                 printf("throttles: %4.2f %, %4.2f %, %4.2f %, %4.2f %\n", throttles[0], throttles[1], throttles[2], throttles[3]);
             

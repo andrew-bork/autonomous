@@ -1,6 +1,6 @@
-#ifndef bmp390_h
-#define bmp390_h
-namespace bmp390 {
+#pragma once
+#include <backend/i2c.h>
+struct bmp390 {
 
     enum pwr {
         SLEEP = 0b00, NORMAL = 0b11, FORCED = 0b10
@@ -47,19 +47,21 @@ namespace bmp390 {
         hz25_16384 = 0x11,
     };
 
-    void init();
+    bmp390();
+    ~bmp390();
 
     void acquire_calib_vars();
 
     int get_raw_temp();
-    double get_temp();
     int get_raw_press();
-    double get_press();
-    double get_press(double temp);
-    double get_height();
-    double get_height(double temp, double press);
-    void get_data(double * data);
 
+    struct reading {
+        double temperature;
+        double pressure;
+    };
+    
+    reading get_data();
+    void get_data(double * data);
 
     void set_iir_filter(iir_filter coeff);
     void set_oversample(oversampling pressure, oversampling temperature);
@@ -90,16 +92,14 @@ namespace bmp390 {
 
     void soft_reset();
 
-    void stop();
+    private:
+
+        double compensate_temperature(std::uint32_t raw_temperature);
+        double compensate_pressure(double temperature, std::uint32_t raw_pressure);
+        struct {
+            double par_t1, par_t2, par_t3;
+            double par_p1, par_p2, par_p3, par_p4, par_p5, par_p6, par_p7, par_p8, par_p9, par_p10, par_p11;
+        } coeffs;
+
+        i2c::device device;
 };
-
-
-
-
-
-
-
-
-
-
-#endif

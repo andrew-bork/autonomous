@@ -1,4 +1,6 @@
 #include <backend/pca9685.h>
+#include <backend/pca9685_macros.h>
+
 #include <backend/i2c.h>
 
 #include <iostream>
@@ -7,18 +9,12 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-// #include <cstdio>
-
-// #include <INIReader.h>
-// #include <config.h>
-// #include <logger.h>
 
 #define read(r) device.read_byte((uint8_t) r)
 #define write(r,v) device.write_byte((uint8_t) r, (uint8_t) v)
 
-static i2c::device device;
 
-int pwm_regs[16][4] = {
+static int pwm_regs[16][4] = {
     {0x06, 0x07, 0x08, 0x09},
     {0x0A, 0x0B, 0x0C, 0x0D},
     {0x0E, 0x0F, 0x10, 0x11},
@@ -37,112 +33,88 @@ int pwm_regs[16][4] = {
     {0x42, 0x43, 0x44, 0x45},
 };
 
-
-static int freq = 200; // hz
-static int per =  1000000 / freq; // 5 ms
-
-static int _get_frequency(){
-    return 25000000 / ((read(PRESCALE) + 1) * 4096);
+void pca9685::get_frequency_from_device(){
+    frequency = 25000000 / ((read(PRESCALE) + 1) * 4096);
 }
 
-void pca9685::init(){
-    // logger::info("Initializing pca9685");
-
-    // INIReader reader
-
-    device=i2c::device(PCA9685_ADDRESS);
-
-    // fd = open("/dev/i2c-1", O_RDWR); //Open the I2C device file
-	// if (fd < 0) { //Catch errors
-    //     // logger::err("Failed to open \"/dev/i2c-1\". Please check that I2C is enabled with raspi-config.");
-	// 	// std::cout << "ERR (pca9685.cpp:open()): Failed to open /dev/i2c-1. Please check that I2C is enabled with raspi-config\n"; //Print error message
-	// }
-
-	// int status = ioctl(fd, I2C_SLAVE, PCA9685_ADDRESS); //Set the I2C bus to use the correct address
-	// if (status < 0) {
-    //     // logger::err("Could not get i2c bus device with address \"{}\". Please confirm that this address is correct.", PCA9685_ADDRESS);
-	// 	// std::cout << "ERR (pca9685.cpp:open()): Could not get I2C bus with " << PCA9685_ADDRESS << " address. Please confirm that this address is correct\n"; //Print error message
-	// }
-
-    freq = _get_frequency();
-    per = 1000000 / freq;
+int pca9685::get_frequency() {
+    return frequency;
 }
 
-void pca9685::destroy(){
+pca9685::pca9685() : device(PCA9685_ADDRESS){
+    get_frequency_from_device();
+    period = 1000000 / frequency;
+}
+
+pca9685::~pca9685(){
     device.close();
 }
 
-int pca9685::query_reg(int reg){
-    // return i2c_smbus_read_byte_data(fd, reg);
-    return device.read_byte((uint8_t) reg);
+int pca9685::query_reg(std::uint8_t register_address){
+    return device.read_byte((uint8_t) register_address);
 }
 
-void pca9685::write_reg(int reg, int val){
-    // i2c_smbus_write_byte_data(fd, reg, val);
-    device.write_byte((uint8_t) reg, (uint8_t) val);
+void pca9685::write_reg(std::uint8_t register_address, std::uint8_t value){
+    device.write_byte(register_address, value);
 }
 
-inline int pcaround(double d){
+static inline int pcaround(double d){
     if(d < 0){
         return (((-d) - ((int)-d)) < 0.5 ? ((int) d) : ((int) d - 1));
     }
     return (d - ((int) d) < 0.5 ? (int) d : (int) d + 1);
 }
 
-void pca9685::set_frequency(int frq){
-// PRESCALE_VAL -> round(25000000 / (4096 * update_rate)) - 1
-    freq = frq;
-    per = 1000000 / frq;
-    int reg_val = pcaround(25000000.0 / (4096 * freq)) - 1;
+void pca9685::set_frequency(int _frequency){
+    // PRESCALE_VAL -> round(25000000 / (4096 * update_rate)) - 1
+    frequency = _frequency;
+    period = 1000000 / frequency;
+    int reg_val = pcaround(25000000.0 / (4096 * frequency)) - 1;
 
-    // printf("\n\npca9685::set_frequency\nSetting frequency to %d\nSetting PRESCALE to %d\n", frq, reg_val & 0xFF);
     write(PRESCALE, reg_val & 0xFF);
     usleep(5000);
-    // printf("Reg 0x%#d val: %d\n", PRESCALE, read(PRESCALE));
 }
-void pca9685::set_pwm_ms(int pwm, int micro_s){
-    int cycle = 4096 * micro_s / per;
-    // printf("\n\npca9685::set_pwm_ms\nSetting OFF of pin %d to %d (%d %d)\nSetting ON of pin %d to %d (%d %d)\n", pwm, cycle, (cycle & 0xF00) >> 8, cycle & 0xFF, pwm, 0, 0, 0);
+
+void pca9685::set_pwm_ms(std::uint8_t pwm, std::uint16_t micro_s){
+    int cycle = 4096 * micro_s / period;
     write(pwm_regs[pwm][0], 0);
     write(pwm_regs[pwm][1], 0);
     write(pwm_regs[pwm][2], cycle & 0xFF);
     write(pwm_regs[pwm][3], (cycle >> 8) & 0xF);
-    // printf("Reg 0x%#d val: %d\nReg 0x%#d val: %d\nReg 0x%#d val: %d\nReg 0x%#d val: %d\n", pwm_regs[pwm][0], read(pwm_regs[pwm][0]), pwm_regs[pwm][1], read(pwm_regs[pwm][1]), pwm_regs[pwm][2], read(pwm_regs[pwm][2]), pwm_regs[pwm][3], read(pwm_regs[pwm][3]));
 }
-void pca9685::set_pwm_percent(int pwm, double percent){
+void pca9685::set_pwm_percent(std::uint8_t pwm, double percent){
     int cycle = (int) (4096 * percent);
-    // printf("\n\npca9685::set_pwm_ms\nSetting OFF of pin %d to %d (%d %d)\nSetting ON of pin %d to %d (%d %d)\n", pwm, cycle, (cycle & 0xF00) >> 8, cycle & 0xFF, pwm, 0, 0, 0);
-    // printf("Estimated OFF ms: %d\nEstimated ON ms: %d\n", percent * per, 0);
     write(pwm_regs[pwm][0], 0);
     write(pwm_regs[pwm][1], 0);
     write(pwm_regs[pwm][2], cycle & 0xFF);
     write(pwm_regs[pwm][3], (cycle >> 8) & 0xF);
-    // printf("Reg 0x%#d val: %d\nReg 0x%#d val: %d\nReg 0x%#d val: %d\nReg 0x%#d val: %d\n", pwm_regs[pwm][0], read(pwm_regs[pwm][0]), pwm_regs[pwm][1], read(pwm_regs[pwm][1]), pwm_regs[pwm][2], read(pwm_regs[pwm][2]), pwm_regs[pwm][3], read(pwm_regs[pwm][3]));
 }
-void pca9685::set_pwm_on(int pwm, int on){
+
+void pca9685::set_pwm_on(std::uint8_t pwm, std::uint16_t on){
     write(pwm_regs[pwm][0], on & 0xFF);
     write(pwm_regs[pwm][1], (on >> 8) & 0xF);
 }
-void pca9685::set_pwm_off(int pwm, int off){
+
+void pca9685::set_pwm_off(std::uint8_t pwm, std::uint16_t off){
     
+}
+
+bool pca9685::is_awake() {
+    return (read(MODE_1) & 0b00010000) == 0;
 }
 
 void pca9685::wake_up(){
-    int old = read(MODE_1);
-    // printf("\n\npca9685::wake_up\nSetting MODE_1 to %d\n", old & ~(0b00010000));
+    std::uint8_t old = read(MODE_1);
     write(MODE_1, old & ~(0b00010000));
-    usleep(5000);
-    // printf("Reg 0x%#d val: %d\n", MODE_1, read(MODE_1));
+    // usleep(5000);
 }
 
 void pca9685::sleep(){
-    int old = read(MODE_1) & 0xFF;
-    // printf("\n\npca9685::sleep\nSetting MODE_1 to %d\n", old | 0b00010000);
+    std::uint8_t old = read(MODE_1) & 0xFF;
     write(MODE_1, old | 0b00010000);
-    usleep(5000);
-    // printf("Reg 0x%#d val: %d\n", MODE_1, read(MODE_1));
+    // usleep(5000);
 }
 
 void pca9685::restart(){
-    
+
 }

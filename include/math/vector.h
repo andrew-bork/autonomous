@@ -1,6 +1,4 @@
-#ifndef VECTOR_H
-#define VECTOR_H
-
+#pragma once
 namespace math{
     struct vector{
         double x,y,z;
@@ -66,5 +64,3 @@ namespace math{
 
     double length(const vector& n);
 };
-
-#endif

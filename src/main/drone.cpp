@@ -8,149 +8,124 @@
  * 
  */
 
+#include <cstdlib>
 
 #include <string>
 #include <unistd.h>
 #include <cmath> 
 
+
 #include <math/quarternion.h>
 #include <math/vector.h>
 #include <math/constants.h>
 
+#include <math/serialize.hpp>
 
 #define delay(s) usleep(s * 1000 * 1000)
 #define delay_ms(s) usleep(s * 1000)
 
-namespace serialize
-{
-    /**
-     * @brief Used to serialize vectors to send using libmissioncontrol
-     * 
-     * @param v 
-     * @return std::string 
-     */
-    std::string serialize(const math::vector& v) {
-        return "{\"x\":"+std::to_string(v.x)+",\"y\":"+std::to_string(v.y)+",\"z\":"+std::to_string(v.z)+"}";
-    }
-} // namespace serialize
-
 #include <backend/mpu6050.h>
 
+#include <subsystem/adiru.hpp>
+#include <subsystem/led_driver.hpp>
+#include <subsystem/motor_driver.hpp>
+
+#include <util/print_utils.hpp>
+
 #include <missioncontrol.h>
-
-
-void print_action(const char * msg) {
-    printf("%s", msg);
-    fflush(stdout);
-}
-void print_success(const char * msg = "OK") {
-    printf("\x1b[1;32m%s\x1b[0m\n", msg);
-} 
-void print_fail(const char * msg = "FAILED") {
-    printf("\x1b[1;31m%s\x1b[0m\n", msg);
-}
-
-mission_control control;
-
-/**
- * @brief The readable information
- * 
- */
-readable<math::vector> accelerometer_acceleration("accelerometer.acceleration", math::vector());
-readable<math::vector> gyroscope_angular_velocity("gyroscope.angular_velocity", math::vector());
-
-readable<std::string> status("status", "spooling up");
-
-readable<math::vector> orientation_euler("orientation", math::vector());
-math::quarternion orientation(1, 0, 0, 0);
 
 
 double update_rate = 10;
 int delay_ms = (int) (1000 / update_rate);
 double dt = 1 / update_rate;
-double tau = 0.5;
+struct {
+    mpu6050* mpu = NULL;
+    bmp390* bmp = NULL;
+    pca9685* pca = NULL;
 
+} peripherals;
+
+struct {
+    mission_control* control = NULL;
+    subsystem::adiru* adiru = NULL;
+    subsystem::led_driver* led_driver = NULL;
+    subsystem::motor_driver* motor_driver = NULL;
+} subsystems;
 
 void setup() {
-    /**
-     * @brief This server will be on a tcp scoket at drone:3000
-     * 
-     */
+    
+    static mission_control control;
     control.connect(3000);
 
-    /**
-     * @brief Test readable
-     * 
-     */
-    control.bind_readable(accelerometer_acceleration);
-    control.bind_readable(gyroscope_angular_velocity);
-    control.bind_readable(orientation_euler);
-    control.bind_readable(status);
+    subsystems.control = &control;
 
-    
-    /**
-     * @brief Test writable
-     * 
-     */
-    control.add_writable<double>("update_rate", update_rate, [](double& new_update_rate) -> double {
-        if(new_update_rate >= 1) {
-            return new_update_rate;
-        }
-        return update_rate;
-    });
+    static mpu6050 mpu;
 
-    /**
-     * @brief Ping! Pong!
-     * prints out Pong! when the ping command is sent
-     * 
-     */
-    control.add_command("ping", [&](std::vector<std::string> args) {
-        printf("Pong!\n");
-    });
-
-    /**
-     * @brief Commands can edit from different scopes. Ensure the lifetime of the variable.
-     * 
-     */
-    control.add_command("bananify", [&](std::vector<std::string> args) {
-        printf("BANANAED!\n");
-        control.log("bananananan!!!!");
-        status = "banananana";
-    });
-
-    /**
-     * @brief Advertise the avaiable readables and commands
-     * 
-     */
-    control.advertise();
-    /**
-     * @brief Update the mission control with all the bound readables.
-     * 
-     */
-    control.tick();
-    status = "initializing";
-    control.tick();
     {
         print_action("Configuring MPU6050 ... ");
-        mpu6050::init();
-        bool calibrate = true;
-        if(mpu6050::is_awake()) {
-            calibrate = false;
-        }
-        mpu6050::set_accl_set(mpu6050::accl_range::g_2);
-        mpu6050::set_gyro_set(mpu6050::gyro_range::deg_250);
-        mpu6050::set_clk(mpu6050::clk::y_gyro);
-        mpu6050::set_fsync(mpu6050::fsync::input_dis);
-        mpu6050::set_dlpf_bandwidth(mpu6050::dlpf::hz_5);
-        mpu6050::wake_up();
+        mpu.set_accl_set(mpu6050::accl_range::g_2);
+        mpu.set_gyro_set(mpu6050::gyro_range::deg_250);
+        mpu.set_clk(mpu6050::clk::y_gyro);
+        mpu.set_fsync(mpu6050::fsync::input_dis);
+        mpu.set_dlpf_bandwidth(mpu6050::dlpf::hz_5);
+        mpu.wake_up();
 
-        mpu6050::calibrate(7);
-        // if(calibrate) mpu6050::calibrate(7);
+        mpu.calibrate(7);
         print_success("DONE");
     }
 
+    static bmp390 bmp;
+    {
+        print_action("Configuring BMP390 ... ");
+        bmp.soft_reset();
+        bmp.set_oversample(bmp390::oversampling::STANDARD, bmp390::ULTRA_LOW_POWER);
+        bmp.set_iir_filter(bmp390::COEFF_3);
+        bmp.set_output_data_rate(bmp390::hz50);
+        bmp.set_enable(true, true);
+        
+        bmp.set_enable_fifo(false, false);
+        bmp.set_fifo_stop_on_full(false);
+
+        bmp.set_pwr_mode(bmp390::NORMAL);
+        print_success("DONE");
+    }
+
+    static pca9685 pca;
+    {
+        print_action("Getting PCA9685 ... ");
+        if(!pca.is_awake()) {
+            print_fail();
+            printf("pca wasn't initialized already. was it armed?\n");
+            throw std::runtime_error("pca was not armed");
+        }
+        print_success("DONE");
+    }
+
+    peripherals.mpu = &mpu;
+    peripherals.bmp = &bmp;
+    peripherals.pca = &pca;
+
+    subsystem::adiru::adiru_settings initial_adiru_settings;
+
+    static subsystem::adiru adiru(initial_adiru_settings, mpu, bmp);
+    adiru.use_mission_control(control);
+
+    static subsystem::led_driver led_driver(pca);
+    led_driver.use_mission_control(control);
+
+    static subsystem::motor_driver motor_driver(pca);
+    motor_driver.use_mission_control(control);
+
+    subsystems.adiru = &adiru;
+    subsystems.led_driver = &led_driver;
+    subsystems.motor_driver = &motor_driver;
+
+    control.advertise();
+
+
     printf("Drone is ready\n");
-    status = "ready";
+    subsystems.led_driver->set(subsystem::green, subsystem::high);
+    // status = "ready";
 }
 
 int i = 0;
@@ -165,36 +140,37 @@ math::vector calculate_roll_pitch(const math::vector& acceleration) {
 
 
 void loop() {
-    // printf("tick %d\n", i++);
-    mpu6050::read(*accelerometer_acceleration, *gyroscope_angular_velocity);
+
+    auto adiru_reading = subsystems.adiru->update(dt);
 
 
-    double a_mag = math::length(accelerometer_acceleration);
-
-
-    // Integrate angular velocity reading.
-    math::quarternion gyro_quarternion = math::quarternion::from_euler_ZYX((*gyroscope_angular_velocity)*dt*DEG_TO_RAD);
-    orientation = gyro_quarternion * orientation;
-    
-    orientation_euler = math::quarternion::to_euler(orientation);
-    math::vector accelerometer_orientation;
-
-    if(abs(a_mag - 1) < 0.1) {
-        // If the acceleration seems in range, use it to calculate orientation.
-        accelerometer_orientation = calculate_roll_pitch(accelerometer_acceleration);
-
-        // Apply a complementary filter
-        orientation_euler = accelerometer_orientation * tau + (*orientation_euler) * (1 - tau);
-
-        // Convert the fused angles back into the quarternion.
-        orientation = math::quarternion::from_euler_ZYX(orientation_euler);
-    }
-
-    control.tick();
+    subsystems.control->tick();
     delay_ms(update_rate);
 }
 
+void set_stop_leds() {
+
+    pca9685 pca;
+    {
+        if(!pca.is_awake()) {
+            return;
+        }
+    }
+    subsystem::led_driver led_driver(pca);
+
+    led_driver.set(subsystem::red, subsystem::high);
+    led_driver.set(subsystem::green, subsystem::low);
+}
+
 int main(){
-    setup();
-    while(1) loop();
+    try {
+        std::atexit(set_stop_leds);
+        setup();
+        while(1) loop();
+    }catch(std::exception& e) {
+        if(subsystems.led_driver != NULL) {
+            subsystems.led_driver->set(subsystem::red, subsystem::high);
+            subsystems.led_driver->set(subsystem::green, subsystem::low);
+        }
+    }
 }

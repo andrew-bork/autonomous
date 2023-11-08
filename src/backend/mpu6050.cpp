@@ -11,7 +11,9 @@
 #include <string>
 #include <cstdint>
 
-#include <backend/i2c.h>
+#define DEG_TO_RAD 0.017453292519943
+#define RAD_TO_DEG 57.29577951308232
+#define SIGNED_16_BIT_MAX 0x7fff
 
 /**
  * @brief Registers
@@ -46,21 +48,10 @@
 #define OUT_ZGYRO_L 0x48
 
 
-#define Read(r) (uint16_t) mpu.read_byte(r)
-#define Write(r,v) mpu.write_byte(r,v)
+#define read(r) (uint16_t) device.read_byte(r)
+#define write(r,v) device.write_byte(r,v)
 
-void mpu6050::init(){init(MPU6050_DEFAULT_ADDR);}
-
-static int offsets[6];
-
-static int accl_scale = 16384;
-static double gyro_scale = 16.4;
-
-static i2c::device mpu;
-
-void mpu6050::init(int addr){
-	mpu = i2c::device(addr);
-	
+mpu6050::mpu6050(int addr) : device(addr){
 	offsets[0] = 0; // X_ACCL_SHIFT;
 	offsets[1] = 0; // Y_ACCL_SHIFT;
 	offsets[2] = 0; // Z_ACCL_SHIFT;
@@ -69,78 +60,73 @@ void mpu6050::init(int addr){
 	offsets[5] = 0; // Z_GYRO_SHIFT;
 }
 
+static int offsets[6];
+
 void mpu6050::print_debug(){
 
 }
 
 bool mpu6050::is_awake() {
-	return (Read(REG_PWR_MNG_1) & (0b01100000)) == 0b000000000;
+	return (read(REG_PWR_MNG_1) & (0b01100000)) == 0b000000000;
 }
 
 void mpu6050::wake_up(){
-	Write(REG_PWR_MNG_1, Read(REG_PWR_MNG_1) & (~0b01000000));
-	usleep(1000);
+	write(REG_PWR_MNG_1, read(REG_PWR_MNG_1) & (~0b01000000) ); // Clear the sleep bit to wake up
+
 }
 
 void mpu6050::sleep(){
-	Write(REG_PWR_MNG_1, Read(REG_PWR_MNG_1) | 0b01000000);
-	usleep(1000);
+	write(REG_PWR_MNG_1, read(REG_PWR_MNG_1) | 0b01000000);
 }
 
-void mpu6050::set_accl_set(accl_range::accl_range set){
-	switch(set){
-	case accl_range::g_16:
-    	accl_scale = 2048;
-		break;
-	case accl_range::g_8: 
-    	accl_scale = 4096;
-		break;
-	case accl_range::g_4: 
-    	accl_scale = 8192;
-		break;
-	case accl_range::g_2: 
-    	accl_scale = 16384;
-		break;
+void mpu6050::set_accl_set(accl_range range){
+	switch(range){
+		case g_16:
+			accel_scale = 16 * 9.81 / SIGNED_16_BIT_MAX;
+			break;
+		case g_8: 
+			accel_scale = 8 * 9.81 / SIGNED_16_BIT_MAX;
+			break;
+		case g_4: 
+			accel_scale = 4 * 9.81 / SIGNED_16_BIT_MAX;
+			break;
+		case g_2: 
+			accel_scale = 2 * 9.81 / SIGNED_16_BIT_MAX;
+			break;
 	}
-	Write(REG_ACCL_CFG, Read(REG_ACCL_CFG) & (~0b00011000) | (set << 3));
-	usleep(1000);
+	write(REG_ACCL_CFG, read(REG_ACCL_CFG) & (~0b00011000) | (range << 3));
 }
 
-void mpu6050::set_gyro_set(gyro_range::gyro_range set){
-	switch(set){
-	case gyro_range::deg_250:
-		gyro_scale = 131;
-		break;
-	case gyro_range::deg_500:
-		gyro_scale = 65.5;
-		break;
-	case gyro_range::deg_1000:
-		gyro_scale = 32.8;
-		break;
-	case gyro_range::deg_2000:
-		gyro_scale = 16.4;
-		break;
+void mpu6050::set_gyro_set(gyro_range range){
+	switch(range){
+		case deg_250:
+			gyro_scale = 250 * DEG_TO_RAD / SIGNED_16_BIT_MAX;
+			break;
+		case deg_500:
+			gyro_scale = 500 * DEG_TO_RAD / SIGNED_16_BIT_MAX;
+			break;
+		case deg_1000:
+			gyro_scale = 1000 * DEG_TO_RAD / SIGNED_16_BIT_MAX;
+			break;
+		case deg_2000:
+			gyro_scale = 2000 * DEG_TO_RAD / SIGNED_16_BIT_MAX;
+			break;
 	}
-	Write(REG_GYRO_CFG, Read(REG_GYRO_CFG) & (~0b00011000) | (set << 3));
-	usleep(1000);
+	write(REG_GYRO_CFG, read(REG_GYRO_CFG) & (~0b00011000) | (range << 3));
 
 
 }
 
-void mpu6050::set_clk(clk::clk set){
-	Write(REG_PWR_MNG_1, Read(REG_PWR_MNG_1) & (~0b00000111) | set);
-	usleep(1000);
+void mpu6050::set_clk(clk set){
+	write(REG_PWR_MNG_1, read(REG_PWR_MNG_1) & (~0b00000111) | set);
 }
 
-void mpu6050::set_dlpf_bandwidth(dlpf::dlpf set){
-	Write(REG_CFG, Read(REG_CFG) & (~0b00000111) | set);
-	
-	usleep(1000);
+void mpu6050::set_dlpf_bandwidth(dlpf set){
+	write(REG_CFG, read(REG_CFG) & (~0b00000111) | set);
 }
 
-void mpu6050::set_fsync(fsync::fsync set){
-	Write(REG_CFG, Read(REG_CFG) & (~0b00111000) | (set << 3));
-	usleep(1000);
+void mpu6050::set_fsync(fsync set){
+	write(REG_CFG, read(REG_CFG) & (~0b00111000) | (set << 3));
 }
 
 int16_t handle_neg(int n){
@@ -151,9 +137,9 @@ int16_t combine(uint8_t h, uint8_t l) {
 	return (((uint16_t) h) << 8) | l; 
 }
 
-void mpu6050::read_raw(int * data){
+void mpu6050::get_data_raw(int * data){
 	uint8_t buf[14];
-	mpu.read_burst(OUT_XACCL_H, buf, 14);
+	device.read_burst(OUT_XACCL_H, buf, 14);
 	data[0] = combine(buf[0],buf[1]);
 	data[1] = combine(buf[2],buf[3]);
 	data[2] = combine(buf[4],buf[5]);
@@ -162,51 +148,63 @@ void mpu6050::read_raw(int * data){
 	data[5] = combine(buf[12],buf[13]);
 }
 
-void mpu6050::read_wo_offsets(double * data){
-	int rawdata[6];
-	mpu6050::read_raw(rawdata);
-	data[0] = ((double) rawdata[0]) / accl_scale;
-	data[1] = ((double) rawdata[1]) / accl_scale;
-	data[2] = ((double) rawdata[2]) / accl_scale;
-	data[3] = ((double) rawdata[3]) / gyro_scale;
-	data[4] = ((double) rawdata[4]) / gyro_scale;
-	data[5] = ((double) rawdata[5]) / gyro_scale;
+void mpu6050::get_data_wo_offsets(double * data){
+	uint8_t buf[14]; // 0-5 Accelerometer 
+					// 6-7 Temp 
+					// 8-13 Gyro 
+	
+	device.read_burst(OUT_XACCL_H, buf, 14); // All registers are in order. Just burst read them all.
+
+	// Combine, convert to signed, and scale.
+	data[0] = (((double) combine(buf[0], buf[1]))) * accel_scale;
+	data[1] = (((double) combine(buf[2], buf[3]))) * accel_scale;
+	data[2] = (((double) combine(buf[4], buf[5]))) * accel_scale;
+
+	data[3] = (((double) combine(buf[8], buf[9]))) * gyro_scale;
+	data[4] = (((double) combine(buf[10], buf[11]))) * gyro_scale;
+	data[5] = (((double) combine(buf[12], buf[13]))) * gyro_scale;
 }
 
 
-void mpu6050::read(double * data){
-	int rawdata[6];
-	mpu6050::read_raw(rawdata);
-	data[0] = ((double) rawdata[0] - offsets[0]) / accl_scale;
-	data[1] = ((double) rawdata[1] - offsets[1]) / accl_scale;
-	data[2] = ((double) rawdata[2] - offsets[2]) / accl_scale;
-	data[3] = ((double) rawdata[3] - offsets[3]) / gyro_scale;
-	data[4] = ((double) rawdata[4] - offsets[4]) / gyro_scale;
-	data[5] = ((double) rawdata[5] - offsets[5]) / gyro_scale;
+void mpu6050::get_data(double * data){
+	std::uint8_t buf[14]; // 0-5 Accelerometer 
+					// 6-7 Temp 
+					// 8-13 Gyro 
+	
+	device.read_burst(OUT_XACCL_H, buf, 14); // All registers are in order. Just burst read them all.
+
+	// Combine, convert to signed, and scale.
+	data[0] = (((double) combine(buf[0], buf[1]))) * accel_scale + offsets[0];
+	data[1] = (((double) combine(buf[2], buf[3]))) * accel_scale + offsets[1];
+	data[2] = (((double) combine(buf[4], buf[5]))) * accel_scale + offsets[2];
+
+	data[3] = (((double) combine(buf[8], buf[9]))) * gyro_scale + offsets[3];
+	data[4] = (((double) combine(buf[10], buf[11]))) * gyro_scale + offsets[4];
+	data[5] = (((double) combine(buf[12], buf[13]))) * gyro_scale + offsets[5];
 }
 
-void mpu6050::read(math::vector& acceleration, math::vector& angular_velocity) {
+void mpu6050::get_data(math::vector& acceleration, math::vector& angular_velocity) {
 	double data[6];
-	read(data);
+	get_data(data);
 	acceleration = math::vector(data[0], data[1], data[2]);
 	angular_velocity = math::vector(data[3], data[4], data[5]);
 }
 
 int mpu6050::query_register(int reg){
-	return Read(reg);
+	return read(reg);
 }
 
 void mpu6050::set_register(int reg, int data){
-	Write(reg,data);
+	write(reg,data);
 }
 
 
 void mpu6050::calibrate(int n){
-	int data[6];
+	double data[6];
 	double error_sum[6];
 	double kP[6] = {0.3, 0.3, 0.3, 0.3, 0.3, 0.3};
 	double kI[6] = {90, 90, 90, 20, 20, 20};
-	double expect[6] = {0, 0, accl_scale * 1.0, 0, 0, 0};
+	double expect[6] = {0, 0, 9.81, 0, 0, 0};
 	for(int i = 0; i < 6; i++){
 		offsets[i] = 0;
 		error_sum[i] = 0;
@@ -214,7 +212,7 @@ void mpu6050::calibrate(int n){
 
 	for(int i = 0; i < n; i ++){
 		for(int j = 0; j < 100; j ++){
-			mpu6050::read_raw(data);
+			get_data(data);
 			
 			double dt = 0.001;
 			for(int k = 0; k < 6; k ++){
@@ -228,7 +226,6 @@ void mpu6050::calibrate(int n){
 			usleep(1000);
 		}
 		
-
 		for(int j = 0; j < 6; j++){
 			kP[j] *= 0.75;
 			kI[j] *= 0.75;
@@ -237,7 +234,11 @@ void mpu6050::calibrate(int n){
 	}
 }
 
-void mpu6050::set_offsets(int x_a, int y_a, int z_a, int x_g, int y_g, int z_g){
+mpu6050::~mpu6050() {
+	device.close();
+}
+
+void mpu6050::set_offsets(double x_a, double y_a, double z_a, double x_g, double y_g, double z_g){
 	offsets[0] = x_a;
 	offsets[1] = y_a;
 	offsets[2] = z_a;
@@ -245,3 +246,4 @@ void mpu6050::set_offsets(int x_a, int y_a, int z_a, int x_g, int y_g, int z_g){
 	offsets[4] = y_g;
 	offsets[5] = z_g;
 }
+
