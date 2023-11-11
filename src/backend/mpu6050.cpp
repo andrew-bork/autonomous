@@ -129,58 +129,52 @@ void mpu6050::set_fsync(fsync set){
 	write(REG_CFG, read(REG_CFG) & (~0b00111000) | (set << 3));
 }
 
-int16_t handle_neg(int n){
+static int16_t handle_neg(uint16_t n){
 	return (int16_t) n;
 }
 
-int16_t combine(uint8_t h, uint8_t l) {
+static uint16_t combine(uint8_t h, uint8_t l) {
 	return (((uint16_t) h) << 8) | l; 
 }
 
-void mpu6050::get_data_raw(int * data){
+void mpu6050::get_data_raw(int16_t * data){
 	uint8_t buf[14];
 	device.read_burst(OUT_XACCL_H, buf, 14);
-	data[0] = combine(buf[0],buf[1]);
-	data[1] = combine(buf[2],buf[3]);
-	data[2] = combine(buf[4],buf[5]);
-	data[3] = combine(buf[8],buf[9]);
-	data[4] = combine(buf[10],buf[11]);
-	data[5] = combine(buf[12],buf[13]);
+	data[0] = (int16_t) combine(buf[0],buf[1]);
+	data[1] = (int16_t) combine(buf[2],buf[3]);
+	data[2] = (int16_t) combine(buf[4],buf[5]);
+	data[3] = (int16_t) combine(buf[8],buf[9]);
+	data[4] = (int16_t) combine(buf[10],buf[11]);
+	data[5] = (int16_t) combine(buf[12],buf[13]);
 }
 
 void mpu6050::get_data_wo_offsets(double * data){
-	uint8_t buf[14]; // 0-5 Accelerometer 
-					// 6-7 Temp 
-					// 8-13 Gyro 
-	
-	device.read_burst(OUT_XACCL_H, buf, 14); // All registers are in order. Just burst read them all.
+	int16_t raw[6];
+	get_data_raw(raw);
 
 	// Combine, convert to signed, and scale.
-	data[0] = (((double) combine(buf[0], buf[1]))) * accel_scale;
-	data[1] = (((double) combine(buf[2], buf[3]))) * accel_scale;
-	data[2] = (((double) combine(buf[4], buf[5]))) * accel_scale;
+	data[0] = ((double) raw[0]) * accel_scale;
+	data[1] = ((double) raw[1]) * accel_scale;
+	data[2] = ((double) raw[2]) * accel_scale;
 
-	data[3] = (((double) combine(buf[8], buf[9]))) * gyro_scale;
-	data[4] = (((double) combine(buf[10], buf[11]))) * gyro_scale;
-	data[5] = (((double) combine(buf[12], buf[13]))) * gyro_scale;
+	data[3] = ((double) raw[3]) * gyro_scale;
+	data[4] = ((double) raw[4]) * gyro_scale;
+	data[5] = ((double) raw[5]) * gyro_scale;
 }
 
 
 void mpu6050::get_data(double * data){
-	std::uint8_t buf[14]; // 0-5 Accelerometer 
-					// 6-7 Temp 
-					// 8-13 Gyro 
-	
-	device.read_burst(OUT_XACCL_H, buf, 14); // All registers are in order. Just burst read them all.
+	int16_t raw[6];
+	get_data_raw(raw);
 
 	// Combine, convert to signed, and scale.
-	data[0] = (((double) combine(buf[0], buf[1]))) * accel_scale + offsets[0];
-	data[1] = (((double) combine(buf[2], buf[3]))) * accel_scale + offsets[1];
-	data[2] = (((double) combine(buf[4], buf[5]))) * accel_scale + offsets[2];
+	data[0] = ((double) raw[0]) * accel_scale + offsets[0];
+	data[1] = ((double) raw[1]) * accel_scale + offsets[1];
+	data[2] = ((double) raw[2]) * accel_scale + offsets[2];
 
-	data[3] = (((double) combine(buf[8], buf[9]))) * gyro_scale + offsets[3];
-	data[4] = (((double) combine(buf[10], buf[11]))) * gyro_scale + offsets[4];
-	data[5] = (((double) combine(buf[12], buf[13]))) * gyro_scale + offsets[5];
+	data[3] = ((double) raw[3]) * gyro_scale + offsets[3];
+	data[4] = ((double) raw[4]) * gyro_scale + offsets[4];
+	data[5] = ((double) raw[5]) * gyro_scale + offsets[5];
 }
 
 void mpu6050::get_data(math::vector& acceleration, math::vector& angular_velocity) {
@@ -200,38 +194,57 @@ void mpu6050::set_register(int reg, int data){
 
 
 void mpu6050::calibrate(int n){
-	double data[6];
-	double error_sum[6];
-	double kP[6] = {0.3, 0.3, 0.3, 0.3, 0.3, 0.3};
-	double kI[6] = {90, 90, 90, 20, 20, 20};
-	double expect[6] = {0, 0, 9.81, 0, 0, 0};
-	for(int i = 0; i < 6; i++){
-		offsets[i] = 0;
-		error_sum[i] = 0;
-	}
+	// double data[6];
+	// double error_sum[6];
+	// double kP[6] = {0.3, 0.3, 0.3, 0.3, 0.3, 0.3};
+	// double kI[6] = {90, 90, 90, 20, 20, 20};
+	// double expect[6] = {0, 0, 9.81, 0, 0, 0};
+	// for(int i = 0; i < 6; i++){
+	// 	offsets[i] = 0;
+	// 	error_sum[i] = 0;
+	// }
 
-	for(int i = 0; i < n; i ++){
-		for(int j = 0; j < 100; j ++){
-			get_data(data);
+	// for(int i = 0; i < n; i ++){
+	// 	for(int j = 0; j < 100; j ++){
+	// 		get_data(data);
 			
-			double dt = 0.001;
-			for(int k = 0; k < 6; k ++){
-				double error = expect[k] - (data[k] - offsets[k]);
-				double p_term = error * kP[k];
-				error_sum[k] += dt * error * kI[k];
+	// 		double dt = 0.001;
+	// 		for(int k = 0; k < 6; k ++){
+	// 			double error = expect[k] - (data[k] - offsets[k]);
+	// 			double p_term = error * kP[k];
+	// 			error_sum[k] += dt * error * kI[k];
 
-				offsets[k] -= round((p_term + error_sum[k]) / 4);
-			}
+	// 			offsets[k] -= round((p_term + error_sum[k]) / 4);
+	// 		}
 
-			usleep(1000);
-		}
+	// 		usleep(1000);
+	// 	}
 		
-		for(int j = 0; j < 6; j++){
-			kP[j] *= 0.75;
-			kI[j] *= 0.75;
-			error_sum[j] = 0;
-		}
+	// 	for(int j = 0; j < 6; j++){
+	// 		kP[j] *= 0.75;
+	// 		kI[j] *= 0.75;
+	// 		error_sum[j] = 0;
+	// 	}
+	// }
+	int us = (int) (1000000 / 100);
+	int iterations = n;
+
+	double sums[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+	double nominal[6] = {0.0, 0.0, 9.81, 0.0, 0.0, 0.0};
+	double data[6];
+
+	for(int i = 0; i < iterations; i ++) {
+		get_data(data);
+		for(int j = 0; j < 6; j ++) sums[j] += data[j];
+		usleep(us);
 	}
+
+	for(int i = 0; i < 6; i ++) {
+		offsets[i] = -sums[i] / iterations + nominal[i];
+		// Serial.print(offsets[i]);
+		// Serial.print(", ");
+	}
+	// Serial.println();
 }
 
 mpu6050::~mpu6050() {

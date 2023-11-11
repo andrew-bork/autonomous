@@ -20,6 +20,8 @@
 #include <math/constants.h>
 
 #include <math/serialize.hpp>
+#include <missioncontrol.h>
+
 
 #define delay(s) usleep(s * 1000 * 1000)
 #define delay_ms(s) usleep(s * 1000)
@@ -32,11 +34,8 @@
 
 #include <util/print_utils.hpp>
 
-#include <missioncontrol.h>
-
-
-double update_rate = 10;
-int delay_ms = (int) (1000 / update_rate);
+double update_rate = 60;
+int delay_us = (int) (1000000 / update_rate);
 double dt = 1 / update_rate;
 struct {
     mpu6050* mpu = NULL;
@@ -52,11 +51,51 @@ struct {
     subsystem::motor_driver* motor_driver = NULL;
 } subsystems;
 
+
+double throttle = 0.0;
+
+
+
+
+
+void clear_console() {
+    printf("\x1B[10F\x1B[0J");
+    fflush(stdout);
+}
+
+// Some random ass prime numbers with 5 digits < 65536 (2^16) :)
+short mission_control_ports[] = {
+    16843,
+    17359,
+    36571,
+    65539,
+};
+
+
 void setup() {
     
     static mission_control control;
-    control.connect(3000);
+    {
+        print_action("Starting Mission Control Server ... ");
+        bool connected = false;
+        size_t i;
+        for(i = 0; i < sizeof(mission_control_ports); i ++) {
+            try {
+                control.connect(mission_control_ports[i]);
+                connected = true;
+                break;
+            }catch(std::exception e) {
 
+            }
+        }
+        if(!connected) {
+            print_fail("FAILED");
+            throw std::runtime_error("Couldn't bind to any mission control ports");
+        }
+        print_success("DONE");
+        printf("Houston, we are listening on port: %d\n", mission_control_ports[i]);
+        
+    }
     subsystems.control = &control;
 
     static mpu6050 mpu;
@@ -70,7 +109,7 @@ void setup() {
         mpu.set_dlpf_bandwidth(mpu6050::dlpf::hz_5);
         mpu.wake_up();
 
-        mpu.calibrate(7);
+        mpu.calibrate(70);
         print_success("DONE");
     }
 
@@ -106,7 +145,10 @@ void setup() {
     peripherals.pca = &pca;
 
     subsystem::adiru::adiru_settings initial_adiru_settings;
-
+    initial_adiru_settings.sample_rate = update_rate;
+    initial_adiru_settings.tau = 0.9;
+    initial_adiru_settings.accelerometer_lowpass_cutoff = 5;
+    initial_adiru_settings.gyroscope_lowpass_cutoff = 5;
     static subsystem::adiru adiru(initial_adiru_settings, mpu, bmp);
     adiru.use_mission_control(control);
 
@@ -120,32 +162,35 @@ void setup() {
     subsystems.led_driver = &led_driver;
     subsystems.motor_driver = &motor_driver;
 
+    control.bind_readable("throttle", throttle);
+    // double * throttle_ptr = &throttle;
+    control.add_writable<double>("throttle", throttle, [&](double& new_value) -> double {
+        if(new_value < 0.0 || new_value > 1.0) return throttle;
+        return new_value;
+    });
+
     control.advertise();
 
 
     printf("Drone is ready\n");
     subsystems.led_driver->set(subsystem::green, subsystem::high);
+    printf("\n\n\n\n\n\n\n\n\n\n");
     // status = "ready";
 }
 
 int i = 0;
 
 
-math::vector calculate_roll_pitch(const math::vector& acceleration) {
-    math::vector euler;
-    euler.x = atan2(acceleration.y, acceleration.z);
-    euler.y = atan2(-acceleration.x, sqrt(acceleration.y * acceleration.y + acceleration.z * acceleration.z));
-    return euler;
-}
-
-
 void loop() {
 
     auto adiru_reading = subsystems.adiru->update(dt);
-
+    clear_console();
+    printf("Throttle: %d%%\n", (int) (throttle * 100));
+    subsystems.motor_driver->set_all(throttle);
 
     subsystems.control->tick();
-    delay_ms(update_rate);
+    // printf("Finished tick\n");
+    usleep(delay_us);
 }
 
 void set_stop_leds() {
@@ -168,6 +213,8 @@ int main(){
         setup();
         while(1) loop();
     }catch(std::exception& e) {
+        std::printf("%s\n", e.what());
+
         if(subsystems.led_driver != NULL) {
             subsystems.led_driver->set(subsystem::red, subsystem::high);
             subsystems.led_driver->set(subsystem::green, subsystem::low);

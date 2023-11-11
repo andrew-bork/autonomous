@@ -87,7 +87,7 @@ struct mpu6050 {
 	
 	void set_offsets(double x_a, double y_a, double z_a, double x_g, double y_g, double z_g);
 
-	void get_data_raw(int * data);
+	void get_data_raw(int16_t * data);
 	
 	void get_data_wo_offsets(double * data);
 

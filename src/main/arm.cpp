@@ -7,8 +7,13 @@
 
 int main() {
     static pca9685 pca;
-    {
+    {   
         print_action("Configuring PCA9685 ... ");
+        if(pca.is_awake()) {
+            print_fail("FAILED");
+            printf("pca was already armed!!! Do not try to re-arm.\n");
+            std::exit(-1);
+        }
         pca.set_frequency(50);
         pca.wake_up();
         print_success("DONE");

@@ -14,11 +14,7 @@ namespace serialize
      * @param v 
      * @return std::string 
      */
-    std::string serialize(const math::vector& v) {
-        return "{\"x\":"+std::to_string(v.x)+",\"y\":"+std::to_string(v.y)+",\"z\":"+std::to_string(v.z)+"}";
-    }
+    std::string serialize(const math::vector& v);
 
-    std::string serialize(const math::quarternion& q) {
-        return "{\"w\": "+std::to_string(q.w)+",\"x\":"+std::to_string(q.x)+",\"y\":"+std::to_string(q.y)+",\"z\":"+std::to_string(q.z)+"}";
-    }
+    std::string serialize(const math::quarternion& q);
 } // namespace serialize
